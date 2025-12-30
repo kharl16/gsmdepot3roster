@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import RosterTable from '@/components/RosterTable';
 import RosterFilters from '@/components/RosterFilters';
+import RosterExport from '@/components/RosterExport';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Car, LogIn, Settings } from 'lucide-react';
@@ -55,6 +56,7 @@ const Roster = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <RosterExport drivers={drivers} />
               {user && isAdmin ? (
                 <Button asChild variant="outline">
                   <Link to="/admin">

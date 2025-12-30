@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -8,7 +8,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { Pencil } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import EditDriverDialog from '@/components/EditDriverDialog';
 
 interface Driver {
   id: string;
@@ -30,6 +34,9 @@ interface RosterTableProps {
 }
 
 const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) => {
+  const { isAdmin } = useAuth();
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+
   const filteredDrivers = useMemo(() => {
     return drivers.filter((driver) => {
       // Captain filter
@@ -88,40 +95,60 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
-            <TableHead className="font-semibold">Badge #</TableHead>
-            <TableHead className="font-semibold">Driver Name</TableHead>
-            <TableHead className="font-semibold">Captain</TableHead>
-            <TableHead className="font-semibold">Phone</TableHead>
-            <TableHead className="font-semibold">Email</TableHead>
-            <TableHead className="font-semibold">Vehicle #</TableHead>
-            <TableHead className="font-semibold">License Expiry</TableHead>
-            <TableHead className="font-semibold">Status</TableHead>
-            <TableHead className="font-semibold">Notes</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredDrivers.map((driver) => (
-            <TableRow key={driver.id} className="hover:bg-muted/30">
-              <TableCell className="font-mono font-medium">{driver.badge_number}</TableCell>
-              <TableCell className="font-medium">{driver.driver_name}</TableCell>
-              <TableCell>{driver.captain}</TableCell>
-              <TableCell className="text-muted-foreground">{driver.phone || '-'}</TableCell>
-              <TableCell className="text-muted-foreground">{driver.email || '-'}</TableCell>
-              <TableCell className="font-mono">{driver.vehicle_number || '-'}</TableCell>
-              <TableCell>{formatDate(driver.license_expiry)}</TableCell>
-              <TableCell>{getStatusBadge(driver.status)}</TableCell>
-              <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                {driver.notes || '-'}
-              </TableCell>
+    <>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              {isAdmin && <TableHead className="w-[50px]"></TableHead>}
+              <TableHead className="font-semibold">Badge #</TableHead>
+              <TableHead className="font-semibold">Driver Name</TableHead>
+              <TableHead className="font-semibold">Captain</TableHead>
+              <TableHead className="font-semibold">Phone</TableHead>
+              <TableHead className="font-semibold">Email</TableHead>
+              <TableHead className="font-semibold">Vehicle #</TableHead>
+              <TableHead className="font-semibold">License Expiry</TableHead>
+              <TableHead className="font-semibold">Status</TableHead>
+              <TableHead className="font-semibold">Notes</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {filteredDrivers.map((driver) => (
+              <TableRow key={driver.id} className="hover:bg-muted/30">
+                {isAdmin && (
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditingDriver(driver)}
+                      className="h-8 w-8"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                )}
+                <TableCell className="font-mono font-medium">{driver.badge_number}</TableCell>
+                <TableCell className="font-medium">{driver.driver_name}</TableCell>
+                <TableCell>{driver.captain}</TableCell>
+                <TableCell className="text-muted-foreground">{driver.phone || '-'}</TableCell>
+                <TableCell className="text-muted-foreground">{driver.email || '-'}</TableCell>
+                <TableCell className="font-mono">{driver.vehicle_number || '-'}</TableCell>
+                <TableCell>{formatDate(driver.license_expiry)}</TableCell>
+                <TableCell>{getStatusBadge(driver.status)}</TableCell>
+                <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                  {driver.notes || '-'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <EditDriverDialog
+        driver={editingDriver}
+        open={!!editingDriver}
+        onOpenChange={(open) => !open && setEditingDriver(null)}
+      />
+    </>
   );
 };
 

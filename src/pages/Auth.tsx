@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +19,7 @@ const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -36,25 +38,53 @@ const Auth = () => {
     }
 
     setIsLoading(true);
-    const { error } = await signIn(email, password);
-    setIsLoading(false);
 
-    if (error) {
-      toast({
-        title: 'Login Failed',
-        description: error.message === 'Invalid login credentials' 
-          ? 'Invalid email or password' 
-          : error.message,
-        variant: 'destructive',
+    if (isSignUp) {
+      const redirectUrl = `${window.location.origin}/`;
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl
+        }
       });
-      return;
-    }
+      setIsLoading(false);
 
-    toast({
-      title: 'Welcome back!',
-      description: 'You have successfully logged in.',
-    });
-    navigate('/admin');
+      if (error) {
+        toast({
+          title: 'Sign Up Failed',
+          description: error.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Account Created!',
+        description: 'You can now sign in. Note: An admin must grant you admin access.',
+      });
+      setIsSignUp(false);
+    } else {
+      const { error } = await signIn(email, password);
+      setIsLoading(false);
+
+      if (error) {
+        toast({
+          title: 'Login Failed',
+          description: error.message === 'Invalid login credentials' 
+            ? 'Invalid email or password' 
+            : error.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Welcome back!',
+        description: 'You have successfully logged in.',
+      });
+      navigate('/admin');
+    }
   };
 
   return (
@@ -66,9 +96,11 @@ const Auth = () => {
               <Car className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Admin Login</CardTitle>
+          <CardTitle className="text-2xl">{isSignUp ? 'Create Account' : 'Admin Login'}</CardTitle>
           <CardDescription>
-            Sign in to manage the taxi driver roster
+            {isSignUp 
+              ? 'Create an account to request admin access' 
+              : 'Sign in to manage the taxi driver roster'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -94,13 +126,22 @@ const Auth = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                autoComplete="current-password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? (isSignUp ? 'Creating account...' : 'Signing in...') : (isSignUp ? 'Create Account' : 'Sign In')}
             </Button>
           </form>
+          <div className="mt-4 text-center text-sm">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-primary hover:underline"
+            >
+              {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+            </button>
+          </div>
         </CardContent>
       </Card>
     </div>
