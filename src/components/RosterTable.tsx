@@ -9,9 +9,22 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
-import { Pencil } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import EditDriverDialog from '@/components/EditDriverDialog';
 
 interface Driver {
@@ -36,6 +49,20 @@ interface RosterTableProps {
 const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) => {
   const { isAdmin } = useAuth();
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    const { error } = await supabase.from('taxi_roster').delete().eq('id', id);
+    setDeletingId(null);
+    
+    if (error) {
+      toast.error('Failed to delete driver');
+    } else {
+      toast.success('Driver deleted successfully');
+      window.location.reload();
+    }
+  };
 
   const filteredDrivers = useMemo(() => {
     return drivers.filter((driver) => {
@@ -117,14 +144,45 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
               <TableRow key={driver.id} className="hover:bg-muted/30">
                 {isAdmin && (
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEditingDriver(driver)}
-                      className="h-8 w-8"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingDriver(driver)}
+                        className="h-8 w-8"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            disabled={deletingId === driver.id}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Driver</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete {driver.driver_name}? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(driver.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 )}
                 <TableCell className="font-mono font-medium">{driver.badge_number}</TableCell>
