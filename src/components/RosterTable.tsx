@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   Table,
   TableBody,
@@ -21,43 +21,45 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { format } from 'date-fns';
-import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Phone, MessageCircle, GripVertical } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import EditDriverDialog from '@/components/EditDriverDialog';
+import { Driver, ColumnKey, ColumnDef } from '@/types/driver';
+import { getTelLink, getTelegramLink, formatPhoneForDisplay } from '@/lib/phone-utils';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
 
-interface Driver {
-  id: string;
-  badge_number: string;
-  driver_name: string;
+interface Filters {
   captain: string;
-  phone: string | null;
-  email: string | null;
-  license_expiry: string | null;
-  vehicle_number: string | null;
-  status: string | null;
-  notes: string | null;
+  schedule: string;
+  restDay: string;
+  status: string;
 }
 
 interface RosterTableProps {
   drivers: Driver[];
   searchQuery: string;
-  captainFilter: string;
+  filters: Filters;
 }
 
-type SortKey = 'badge_number' | 'driver_name' | 'captain' | 'phone' | 'email' | 'vehicle_number' | 'license_expiry' | 'status';
 type SortDirection = 'asc' | 'desc' | null;
 
-const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) => {
+const RosterTable = ({ drivers, searchQuery, filters }: RosterTableProps) => {
   const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortKey, setSortKey] = useState<ColumnKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const { columns, moveColumn } = useColumnOrder();
+  
+  // Drag state
+  const draggedColumn = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -68,7 +70,7 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
       toast.error('Failed to delete driver');
     } else {
       toast.success('Driver deleted successfully');
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ['taxi-roster'] });
     }
   };
 
@@ -87,7 +89,7 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
     } else {
       toast.success(`${selectedIds.size} driver(s) deleted successfully`);
       setSelectedIds(new Set());
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ['taxi-roster'] });
     }
   };
 
@@ -109,7 +111,7 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
     setSelectedIds(newSet);
   };
 
-  const handleSort = (key: SortKey) => {
+  const handleSort = (key: ColumnKey) => {
     if (sortKey === key) {
       if (sortDirection === 'asc') {
         setSortDirection('desc');
@@ -123,43 +125,91 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
     }
   };
 
-  const getSortIcon = (key: SortKey) => {
+  const getSortIcon = (key: ColumnKey) => {
     if (sortKey !== key) return <ArrowUpDown className="ml-1 h-3 w-3" />;
     if (sortDirection === 'asc') return <ArrowUp className="ml-1 h-3 w-3" />;
     return <ArrowDown className="ml-1 h-3 w-3" />;
   };
 
+  // Handle drag events
+  const handleDragStart = (index: number) => {
+    draggedColumn.current = index;
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    if (draggedColumn.current !== null && dragOverIndex !== null && draggedColumn.current !== dragOverIndex) {
+      moveColumn(draggedColumn.current, dragOverIndex);
+    }
+    draggedColumn.current = null;
+    setDragOverIndex(null);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  // Filter drivers
   const filteredDrivers = useMemo(() => {
     return drivers.filter((driver) => {
-      if (captainFilter && driver.captain !== captainFilter) {
+      // Apply filters (AND logic)
+      if (filters.captain && filters.captain !== 'all' && driver.captain !== filters.captain) {
+        return false;
+      }
+      if (filters.schedule && filters.schedule !== 'all' && driver.schedule !== filters.schedule) {
+        return false;
+      }
+      if (filters.restDay && filters.restDay !== 'all' && driver.rest_day !== filters.restDay) {
+        return false;
+      }
+      if (filters.status && filters.status !== 'all' && driver.status !== filters.status) {
         return false;
       }
       
+      // Apply search (partial, case-insensitive, across all columns)
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
-          driver.badge_number.toLowerCase().includes(query) ||
-          driver.driver_name.toLowerCase().includes(query) ||
-          driver.captain.toLowerCase().includes(query) ||
+          driver.plate.toLowerCase().includes(query) ||
+          driver.employee_id.toLowerCase().includes(query) ||
+          driver.name.toLowerCase().includes(query) ||
           driver.phone?.toLowerCase().includes(query) ||
-          driver.email?.toLowerCase().includes(query) ||
-          driver.vehicle_number?.toLowerCase().includes(query) ||
-          driver.notes?.toLowerCase().includes(query)
+          driver.telegram_phone?.toLowerCase().includes(query) ||
+          driver.captain.toLowerCase().includes(query) ||
+          driver.schedule?.toLowerCase().includes(query) ||
+          driver.rest_day?.toLowerCase().includes(query) ||
+          driver.status?.toLowerCase().includes(query)
         );
       }
       
       return true;
     });
-  }, [drivers, searchQuery, captainFilter]);
+  }, [drivers, searchQuery, filters]);
 
+  // Sort drivers
   const sortedDrivers = useMemo(() => {
     if (!sortKey || !sortDirection) return filteredDrivers;
     
     return [...filteredDrivers].sort((a, b) => {
-      const aVal = a[sortKey] ?? '';
-      const bVal = b[sortKey] ?? '';
+      let aVal: string | null = null;
+      let bVal: string | null = null;
       
-      const comparison = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
+      switch (sortKey) {
+        case 'plate': aVal = a.plate; bVal = b.plate; break;
+        case 'employee_id': aVal = a.employee_id; bVal = b.employee_id; break;
+        case 'name': aVal = a.name; bVal = b.name; break;
+        case 'captain': aVal = a.captain; bVal = b.captain; break;
+        case 'schedule': aVal = a.schedule; bVal = b.schedule; break;
+        case 'rest_day': aVal = a.rest_day; bVal = b.rest_day; break;
+        case 'status': aVal = a.status; bVal = b.status; break;
+        default: return 0;
+      }
+      
+      const comparison = String(aVal ?? '').localeCompare(String(bVal ?? ''), undefined, { numeric: true });
       return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [filteredDrivers, sortKey, sortDirection]);
@@ -173,29 +223,59 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
       case 'suspended':
         return <Badge variant="destructive">Suspended</Badge>;
       default:
-        return <Badge variant="outline">{status || 'Unknown'}</Badge>;
+        return <Badge variant="outline">{status || '-'}</Badge>;
     }
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    try {
-      return format(new Date(dateString), 'MMM dd, yyyy');
-    } catch {
-      return dateString;
+  const renderCellContent = (driver: Driver, columnKey: ColumnKey) => {
+    switch (columnKey) {
+      case 'plate':
+        return <span className="font-mono font-medium">{driver.plate}</span>;
+      case 'employee_id':
+        return <span className="font-mono">{driver.employee_id}</span>;
+      case 'name':
+        return <span className="font-medium">{driver.name}</span>;
+      case 'phone': {
+        const telLink = getTelLink(driver.phone);
+        if (!telLink) return <span className="text-muted-foreground">-</span>;
+        return (
+          <a 
+            href={telLink} 
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            <Phone className="h-3 w-3" />
+            <span className="hidden sm:inline">{formatPhoneForDisplay(driver.phone)}</span>
+            <span className="sm:hidden">Call</span>
+          </a>
+        );
+      }
+      case 'telegram': {
+        const telegramLink = getTelegramLink(driver.telegram_phone, driver.phone);
+        if (!telegramLink) return <span className="text-muted-foreground">-</span>;
+        return (
+          <a 
+            href={telegramLink} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-blue-500 hover:underline"
+          >
+            <MessageCircle className="h-3 w-3" />
+            <span>Telegram</span>
+          </a>
+        );
+      }
+      case 'captain':
+        return driver.captain;
+      case 'schedule':
+        return driver.schedule || '-';
+      case 'rest_day':
+        return driver.rest_day || '-';
+      case 'status':
+        return getStatusBadge(driver.status);
+      default:
+        return '-';
     }
   };
-
-  const SortableHeader = ({ sortKeyName, children }: { sortKeyName: SortKey; children: React.ReactNode }) => (
-    <Button
-      variant="ghost"
-      className="h-auto p-0 font-semibold hover:bg-transparent"
-      onClick={() => handleSort(sortKeyName)}
-    >
-      {children}
-      {getSortIcon(sortKeyName)}
-    </Button>
-  );
 
   if (filteredDrivers.length === 0) {
     return (
@@ -208,7 +288,6 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
   }
 
   const allSelected = sortedDrivers.length > 0 && sortedDrivers.every(d => selectedIds.has(d.id));
-  const someSelected = selectedIds.size > 0;
 
   return (
     <>
@@ -245,7 +324,7 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
           </Button>
         </div>
       )}
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -259,26 +338,47 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
                 </TableHead>
               )}
               {isAdmin && <TableHead className="w-[80px]"></TableHead>}
-              <TableHead><SortableHeader sortKeyName="badge_number">Badge #</SortableHeader></TableHead>
-              <TableHead><SortableHeader sortKeyName="driver_name">Driver Name</SortableHeader></TableHead>
-              <TableHead><SortableHeader sortKeyName="captain">Captain</SortableHeader></TableHead>
-              <TableHead><SortableHeader sortKeyName="phone">Phone</SortableHeader></TableHead>
-              <TableHead><SortableHeader sortKeyName="email">Email</SortableHeader></TableHead>
-              <TableHead><SortableHeader sortKeyName="vehicle_number">Vehicle #</SortableHeader></TableHead>
-              <TableHead><SortableHeader sortKeyName="license_expiry">License Expiry</SortableHeader></TableHead>
-              <TableHead><SortableHeader sortKeyName="status">Status</SortableHeader></TableHead>
-              <TableHead className="font-semibold">Notes</TableHead>
+              {columns.map((col, index) => (
+                <TableHead 
+                  key={col.key}
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragEnd={handleDragEnd}
+                  onDragLeave={handleDragLeave}
+                  className={`cursor-grab select-none ${dragOverIndex === index ? 'bg-primary/20' : ''}`}
+                >
+                  <div className="flex items-center gap-1">
+                    <GripVertical className="h-3 w-3 text-muted-foreground" />
+                    {col.sortable ? (
+                      <Button
+                        variant="ghost"
+                        className="h-auto p-0 font-semibold hover:bg-transparent"
+                        onClick={() => handleSort(col.key)}
+                      >
+                        {col.label}
+                        {getSortIcon(col.key)}
+                      </Button>
+                    ) : (
+                      <span className="font-semibold">{col.label}</span>
+                    )}
+                  </div>
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedDrivers.map((driver) => (
-              <TableRow key={driver.id} className={`hover:bg-muted/30 ${selectedIds.has(driver.id) ? 'bg-muted/20' : ''}`}>
+              <TableRow 
+                key={driver.id} 
+                className={`hover:bg-muted/30 ${selectedIds.has(driver.id) ? 'bg-muted/20' : ''}`}
+              >
                 {isAdmin && (
                   <TableCell>
                     <Checkbox
                       checked={selectedIds.has(driver.id)}
                       onCheckedChange={(checked) => toggleSelect(driver.id, !!checked)}
-                      aria-label={`Select ${driver.driver_name}`}
+                      aria-label={`Select ${driver.name}`}
                     />
                   </TableCell>
                 )}
@@ -308,7 +408,7 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Driver</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete {driver.driver_name}? This action cannot be undone.
+                              Are you sure you want to delete {driver.name}? This action cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -325,17 +425,11 @@ const RosterTable = ({ drivers, searchQuery, captainFilter }: RosterTableProps) 
                     </div>
                   </TableCell>
                 )}
-                <TableCell className="font-mono font-medium">{driver.badge_number}</TableCell>
-                <TableCell className="font-medium">{driver.driver_name}</TableCell>
-                <TableCell>{driver.captain}</TableCell>
-                <TableCell className="text-muted-foreground">{driver.phone || '-'}</TableCell>
-                <TableCell className="text-muted-foreground">{driver.email || '-'}</TableCell>
-                <TableCell className="font-mono">{driver.vehicle_number || '-'}</TableCell>
-                <TableCell>{formatDate(driver.license_expiry)}</TableCell>
-                <TableCell>{getStatusBadge(driver.status)}</TableCell>
-                <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                  {driver.notes || '-'}
-                </TableCell>
+                {columns.map((col) => (
+                  <TableCell key={col.key}>
+                    {renderCellContent(driver, col.key)}
+                  </TableCell>
+                ))}
               </TableRow>
             ))}
           </TableBody>

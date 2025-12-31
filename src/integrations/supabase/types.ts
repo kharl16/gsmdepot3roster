@@ -43,46 +43,46 @@ export type Database = {
       }
       taxi_roster: {
         Row: {
-          badge_number: string
           captain: string
           created_at: string
-          driver_name: string
-          email: string | null
+          employee_id: string
           id: string
-          license_expiry: string | null
-          notes: string | null
+          name: string
           phone: string | null
+          plate: string
+          rest_day: string | null
+          schedule: string | null
           status: string | null
+          telegram_phone: string | null
           updated_at: string
-          vehicle_number: string | null
         }
         Insert: {
-          badge_number: string
           captain: string
           created_at?: string
-          driver_name: string
-          email?: string | null
+          employee_id: string
           id?: string
-          license_expiry?: string | null
-          notes?: string | null
+          name: string
           phone?: string | null
+          plate: string
+          rest_day?: string | null
+          schedule?: string | null
           status?: string | null
+          telegram_phone?: string | null
           updated_at?: string
-          vehicle_number?: string | null
         }
         Update: {
-          badge_number?: string
           captain?: string
           created_at?: string
-          driver_name?: string
-          email?: string | null
+          employee_id?: string
           id?: string
-          license_expiry?: string | null
-          notes?: string | null
+          name?: string
           phone?: string | null
+          plate?: string
+          rest_day?: string | null
+          schedule?: string | null
           status?: string | null
+          telegram_phone?: string | null
           updated_at?: string
-          vehicle_number?: string | null
         }
         Relationships: []
       }

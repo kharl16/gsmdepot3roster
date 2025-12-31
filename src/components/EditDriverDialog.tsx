@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -19,19 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-
-interface Driver {
-  id: string;
-  badge_number: string;
-  driver_name: string;
-  captain: string;
-  phone: string | null;
-  email: string | null;
-  license_expiry: string | null;
-  vehicle_number: string | null;
-  status: string | null;
-  notes: string | null;
-}
+import { Driver } from '@/types/driver';
 
 interface EditDriverDialogProps {
   driver: Driver | null;
@@ -55,15 +42,15 @@ const EditDriverDialog = ({ driver, open, onOpenChange }: EditDriverDialogProps)
       const { error } = await supabase
         .from('taxi_roster')
         .update({
-          badge_number: data.badge_number,
-          driver_name: data.driver_name,
-          captain: data.captain,
+          plate: data.plate,
+          employee_id: data.employee_id,
+          name: data.name,
           phone: data.phone || null,
-          email: data.email || null,
-          license_expiry: data.license_expiry || null,
-          vehicle_number: data.vehicle_number || null,
+          telegram_phone: data.telegram_phone || null,
+          captain: data.captain,
+          schedule: data.schedule || null,
+          rest_day: data.rest_day || null,
           status: data.status || 'active',
-          notes: data.notes || null,
         })
         .eq('id', data.id);
 
@@ -85,10 +72,10 @@ const EditDriverDialog = ({ driver, open, onOpenChange }: EditDriverDialogProps)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.badge_number || !formData.driver_name || !formData.captain) {
+    if (!formData.plate || !formData.employee_id || !formData.name || !formData.captain) {
       toast({
         title: 'Missing required fields',
-        description: 'Badge number, driver name, and captain are required.',
+        description: 'Plate, ID, Name, and Captain are required.',
         variant: 'destructive',
       });
       return;
@@ -105,30 +92,31 @@ const EditDriverDialog = ({ driver, open, onOpenChange }: EditDriverDialogProps)
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="badge_number">Badge Number *</Label>
+              <Label htmlFor="plate">Plate *</Label>
               <Input
-                id="badge_number"
-                value={formData.badge_number || ''}
-                onChange={(e) => setFormData({ ...formData, badge_number: e.target.value })}
+                id="plate"
+                value={formData.plate || ''}
+                onChange={(e) => setFormData({ ...formData, plate: e.target.value })}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vehicle_number">Vehicle Number</Label>
+              <Label htmlFor="employee_id">Employee ID *</Label>
               <Input
-                id="vehicle_number"
-                value={formData.vehicle_number || ''}
-                onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value })}
+                id="employee_id"
+                value={formData.employee_id || ''}
+                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                required
               />
             </div>
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="driver_name">Driver Name *</Label>
+            <Label htmlFor="name">Name *</Label>
             <Input
-              id="driver_name"
-              value={formData.driver_name || ''}
-              onChange={(e) => setFormData({ ...formData, driver_name: e.target.value })}
+              id="name"
+              value={formData.name || ''}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
             />
           </div>
@@ -153,52 +141,49 @@ const EditDriverDialog = ({ driver, open, onOpenChange }: EditDriverDialogProps)
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="telegram_phone">Telegram Phone</Label>
               <Input
-                id="email"
-                type="email"
-                value={formData.email || ''}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                id="telegram_phone"
+                value={formData.telegram_phone || ''}
+                onChange={(e) => setFormData({ ...formData, telegram_phone: e.target.value })}
               />
             </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="license_expiry">License Expiry</Label>
+              <Label htmlFor="schedule">Schedule</Label>
               <Input
-                id="license_expiry"
-                type="date"
-                value={formData.license_expiry || ''}
-                onChange={(e) => setFormData({ ...formData, license_expiry: e.target.value })}
+                id="schedule"
+                value={formData.schedule || ''}
+                onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status || 'active'}
-                onValueChange={(value) => setFormData({ ...formData, status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="suspended">Suspended</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="rest_day">Rest Day</Label>
+              <Input
+                id="rest_day"
+                value={formData.rest_day || ''}
+                onChange={(e) => setFormData({ ...formData, rest_day: e.target.value })}
+              />
             </div>
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes || ''}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-            />
+            <Label htmlFor="status">Status</Label>
+            <Select
+              value={formData.status || 'active'}
+              onValueChange={(value) => setFormData({ ...formData, status: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="flex justify-end gap-2">
