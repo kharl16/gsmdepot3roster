@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,10 +9,23 @@ import RosterExport from '@/components/RosterExport';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Car, LogIn, Settings } from 'lucide-react';
+import { Driver } from '@/types/driver';
+
+interface Filters {
+  captain: string;
+  schedule: string;
+  restDay: string;
+  status: string;
+}
 
 const Roster = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [captainFilter, setCaptainFilter] = useState('');
+  const [filters, setFilters] = useState<Filters>({
+    captain: 'all',
+    schedule: 'all',
+    restDay: 'all',
+    status: 'all',
+  });
   const { user, isAdmin } = useAuth();
 
   const { data: drivers = [], isLoading, error } = useQuery({
@@ -22,21 +35,26 @@ const Roster = () => {
         .from('taxi_roster')
         .select('*')
         .order('captain', { ascending: true })
-        .order('driver_name', { ascending: true });
+        .order('name', { ascending: true });
       
       if (error) throw error;
-      return data;
+      return data as Driver[];
     },
   });
 
-  const captains = useMemo(() => {
-    const uniqueCaptains = [...new Set(drivers.map((d) => d.captain))];
-    return uniqueCaptains.sort();
+  // Extract unique values for filter options
+  const filterOptions = useMemo(() => {
+    const captains = [...new Set(drivers.map((d) => d.captain))].filter(Boolean).sort();
+    const schedules = [...new Set(drivers.map((d) => d.schedule))].filter(Boolean).sort() as string[];
+    const restDays = [...new Set(drivers.map((d) => d.rest_day))].filter(Boolean).sort() as string[];
+    const statuses = [...new Set(drivers.map((d) => d.status))].filter(Boolean).sort() as string[];
+    
+    return { captains, schedules, restDays, statuses };
   }, [drivers]);
 
-  const handleCaptainChange = (value: string) => {
-    setCaptainFilter(value === 'all' ? '' : value);
-  };
+  const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -96,14 +114,14 @@ const Roster = () => {
             <RosterFilters
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              captainFilter={captainFilter}
-              onCaptainChange={handleCaptainChange}
-              captains={captains}
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              filterOptions={filterOptions}
             />
             <RosterTable
               drivers={drivers}
               searchQuery={searchQuery}
-              captainFilter={captainFilter}
+              filters={filters}
             />
           </div>
         )}

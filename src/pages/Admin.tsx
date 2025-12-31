@@ -8,29 +8,76 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Car, Home, LogOut, Upload, Loader2 } from 'lucide-react';
+import { Car, Home, LogOut, Upload, Loader2, Eye } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface DriverRow {
-  badge_number: string;
-  driver_name: string;
+  plate: string;
+  employee_id: string;
+  name: string;
   captain: string;
   phone?: string;
-  email?: string;
-  license_expiry?: string;
-  vehicle_number?: string;
+  telegram_phone?: string;
+  schedule?: string;
+  rest_day?: string;
   status?: string;
-  notes?: string;
 }
 
 const Admin = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadType, setUploadType] = useState<'upsert' | 'replace'>('upsert');
   const [isUploading, setIsUploading] = useState(false);
+  const [previewData, setPreviewData] = useState<DriverRow[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const normalizeHeader = (header: string): string => {
+    // Trim and lowercase
+    let normalized = header.trim().toLowerCase();
+    
+    // Handle common variations
+    const mappings: Record<string, string> = {
+      'plate': 'plate',
+      'plate #': 'plate',
+      'plate#': 'plate',
+      'id': 'employee_id',
+      'employee id': 'employee_id',
+      'employee_id': 'employee_id',
+      'name': 'name',
+      'driver name': 'name',
+      'driver_name': 'name',
+      'phone': 'phone',
+      'phone #': 'phone',
+      'phone#': 'phone',
+      'phone number': 'phone',
+      'telegram': 'telegram_phone',
+      'telegram phone': 'telegram_phone',
+      'telegram_phone': 'telegram_phone',
+      'captain': 'captain',
+      'supervisor': 'captain',
+      'schedule': 'schedule',
+      'schedule ': 'schedule', // Handle trailing space
+      'rd': 'rest_day',
+      'rd (rest day)': 'rest_day',
+      'rest day': 'rest_day',
+      'rest_day': 'rest_day',
+      'restday': 'rest_day',
+      'status': 'status',
+    };
+    
+    return mappings[normalized] || normalized;
+  };
 
   const parseFile = async (file: File): Promise<DriverRow[]> => {
     return new Promise((resolve, reject) => {
@@ -42,36 +89,33 @@ const Admin = () => {
           const workbook = XLSX.read(data, { type: 'binary' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+          const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { raw: false });
           
-          // Map column names (handle various formats)
+          // Map column names with normalization
           const drivers: DriverRow[] = jsonData.map((row) => {
-            const getValue = (keys: string[]): string => {
-              for (const key of keys) {
-                const value = row[key] || row[key.toLowerCase()] || row[key.toUpperCase()];
-                if (value !== undefined && value !== null) {
-                  return String(value).trim();
-                }
-              }
-              return '';
-            };
+            // Create a normalized key map
+            const normalizedRow: Record<string, string> = {};
+            for (const [key, value] of Object.entries(row)) {
+              const normalizedKey = normalizeHeader(key);
+              normalizedRow[normalizedKey] = value !== undefined && value !== null ? String(value).trim() : '';
+            }
             
             return {
-              badge_number: getValue(['badge_number', 'badge', 'Badge Number', 'Badge #', 'Badge']),
-              driver_name: getValue(['driver_name', 'name', 'Driver Name', 'Name', 'Driver']),
-              captain: getValue(['captain', 'Captain', 'supervisor', 'Supervisor']),
-              phone: getValue(['phone', 'Phone', 'Phone Number', 'Contact']) || undefined,
-              email: getValue(['email', 'Email', 'Email Address']) || undefined,
-              license_expiry: getValue(['license_expiry', 'License Expiry', 'License Exp', 'Expiry']) || undefined,
-              vehicle_number: getValue(['vehicle_number', 'Vehicle Number', 'Vehicle #', 'Vehicle', 'Car Number']) || undefined,
-              status: getValue(['status', 'Status']) || 'active',
-              notes: getValue(['notes', 'Notes', 'Comments', 'Remarks']) || undefined,
+              plate: normalizedRow['plate'] || '',
+              employee_id: normalizedRow['employee_id'] || '',
+              name: normalizedRow['name'] || '',
+              captain: normalizedRow['captain'] || '',
+              phone: normalizedRow['phone'] || undefined,
+              telegram_phone: normalizedRow['telegram_phone'] || undefined,
+              schedule: normalizedRow['schedule'] || undefined,
+              rest_day: normalizedRow['rest_day'] || undefined,
+              status: normalizedRow['status'] || 'active',
             };
           });
           
           // Filter out rows without required fields
           const validDrivers = drivers.filter(
-            (d) => d.badge_number && d.driver_name && d.captain
+            (d) => d.plate && d.employee_id && d.name && d.captain
           );
           
           resolve(validDrivers);
@@ -85,6 +129,27 @@ const Admin = () => {
     });
   };
 
+  const handleFileSelect = async (file: File | null) => {
+    setSelectedFile(file);
+    setShowPreview(false);
+    setPreviewData([]);
+    
+    if (file) {
+      try {
+        const data = await parseFile(file);
+        setPreviewData(data.slice(0, 20)); // Preview first 20 rows
+        setShowPreview(true);
+      } catch (error) {
+        console.error('Preview error:', error);
+        toast({
+          title: 'Preview failed',
+          description: 'Could not parse file for preview.',
+          variant: 'destructive',
+        });
+      }
+    }
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) return;
     
@@ -96,7 +161,7 @@ const Admin = () => {
       if (drivers.length === 0) {
         toast({
           title: 'No valid data',
-          description: 'The file contains no valid driver records. Make sure columns include badge_number, driver_name, and captain.',
+          description: 'The file contains no valid driver records. Required columns: PLATE, ID, NAME, Captain.',
           variant: 'destructive',
         });
         setIsUploading(false);
@@ -113,10 +178,10 @@ const Admin = () => {
         if (deleteError) throw deleteError;
       }
       
-      // Upsert drivers (insert or update based on badge_number)
+      // Upsert drivers (insert or update based on plate)
       const { error: upsertError } = await supabase
         .from('taxi_roster')
-        .upsert(drivers, { onConflict: 'badge_number' });
+        .upsert(drivers, { onConflict: 'plate' });
       
       if (upsertError) throw upsertError;
       
@@ -137,6 +202,8 @@ const Admin = () => {
       });
       
       setSelectedFile(null);
+      setPreviewData([]);
+      setShowPreview(false);
     } catch (error) {
       console.error('Upload error:', error);
       toast({
@@ -188,7 +255,7 @@ const Admin = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -197,11 +264,48 @@ const Admin = () => {
               </CardTitle>
               <CardDescription>
                 Upload a CSV or Excel file to update the driver roster.
-                Required columns: badge_number, driver_name, captain
+                Required columns: PLATE, ID, NAME, Captain
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <FileUpload onFileSelect={setSelectedFile} />
+              <FileUpload onFileSelect={handleFileSelect} />
+              
+              {showPreview && previewData.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Eye className="h-4 w-4" />
+                    Preview (first 20 rows of {previewData.length} parsed)
+                  </div>
+                  <div className="border rounded-md overflow-x-auto max-h-[300px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead>PLATE</TableHead>
+                          <TableHead>ID</TableHead>
+                          <TableHead>NAME</TableHead>
+                          <TableHead>Captain</TableHead>
+                          <TableHead>Schedule</TableHead>
+                          <TableHead>RD</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {previewData.map((row, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-mono">{row.plate}</TableCell>
+                            <TableCell>{row.employee_id}</TableCell>
+                            <TableCell>{row.name}</TableCell>
+                            <TableCell>{row.captain}</TableCell>
+                            <TableCell>{row.schedule || '-'}</TableCell>
+                            <TableCell>{row.rest_day || '-'}</TableCell>
+                            <TableCell>{row.status || 'active'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
               
               {selectedFile && (
                 <>
@@ -216,10 +320,10 @@ const Admin = () => {
                         <RadioGroupItem value="upsert" id="upsert" className="mt-1" />
                         <div>
                           <Label htmlFor="upsert" className="font-medium cursor-pointer">
-                            Update/Insert (Upsert)
+                            Update/Insert (Upsert by PLATE)
                           </Label>
                           <p className="text-sm text-muted-foreground">
-                            Add new drivers and update existing ones based on badge number
+                            Add new drivers and update existing ones based on plate number
                           </p>
                         </div>
                       </div>

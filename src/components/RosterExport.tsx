@@ -7,19 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-interface Driver {
-  id: string;
-  badge_number: string;
-  driver_name: string;
-  captain: string;
-  phone: string | null;
-  email: string | null;
-  license_expiry: string | null;
-  vehicle_number: string | null;
-  status: string | null;
-  notes: string | null;
-}
+import { Driver } from '@/types/driver';
 
 interface RosterExportProps {
   drivers: Driver[];
@@ -28,15 +16,15 @@ interface RosterExportProps {
 const RosterExport = ({ drivers }: RosterExportProps) => {
   const prepareExportData = () => {
     return drivers.map((driver) => ({
-      'Badge Number': driver.badge_number,
-      'Driver Name': driver.driver_name,
+      'PLATE': driver.plate,
+      'ID': driver.employee_id,
+      'NAME': driver.name,
+      'PHONE': driver.phone || '',
+      'TELEGRAM': driver.telegram_phone || '',
       'Captain': driver.captain,
-      'Phone': driver.phone || '',
-      'Email': driver.email || '',
-      'Vehicle Number': driver.vehicle_number || '',
-      'License Expiry': driver.license_expiry || '',
+      'Schedule': driver.schedule || '',
+      'RD': driver.rest_day || '',
       'Status': driver.status || '',
-      'Notes': driver.notes || '',
     }));
   };
 
