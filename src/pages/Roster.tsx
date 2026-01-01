@@ -10,7 +10,7 @@ import { RosterShareActions } from '@/components/RosterShareActions';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Car, LogIn, Settings } from 'lucide-react';
+import { Car, LogIn, LogOut, Settings } from 'lucide-react';
 import { Driver } from '@/types/driver';
 
 interface Filters {
@@ -29,7 +29,7 @@ const Roster = () => {
     status: 'all',
   });
   const [selectedDrivers, setSelectedDrivers] = useState<Driver[]>([]);
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
 
   const { data: drivers = [], isLoading, error } = useQuery({
     queryKey: ['taxi-roster'],
@@ -105,21 +105,29 @@ const Roster = () => {
             <div className="flex items-center gap-2">
               <RosterExport drivers={drivers} />
               <ThemeToggle />
-              {user && isAdmin ? (
-                <Button asChild variant="outline">
-                  <Link to="/admin">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Admin Panel
-                  </Link>
-                </Button>
-              ) : !user ? (
+              {user ? (
+                <>
+                  {isAdmin && (
+                    <Button asChild variant="outline">
+                      <Link to="/admin">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Admin Panel
+                      </Link>
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={signOut}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </>
+              ) : (
                 <Button asChild variant="outline">
                   <Link to="/auth">
                     <LogIn className="h-4 w-4 mr-2" />
                     Admin Login
                   </Link>
                 </Button>
-              ) : null}
+              )}
             </div>
           </div>
         </div>
