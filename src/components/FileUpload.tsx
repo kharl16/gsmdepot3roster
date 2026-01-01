@@ -10,10 +10,19 @@ interface FileUploadProps {
   maxSize?: number; // in MB
 }
 
+// Allowed MIME types for spreadsheet files
+const ALLOWED_MIME_TYPES = [
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.ms-excel', // .xls
+  'text/csv', // .csv
+  'application/csv', // .csv alternative
+  'text/plain', // Some systems report CSV as text/plain
+];
+
 const FileUpload = ({ 
   onFileSelect, 
   acceptedTypes = '.csv,.xlsx,.xls',
-  maxSize = 10 
+  maxSize = 5 // Reduced to 5MB for security
 }: FileUploadProps) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -23,6 +32,7 @@ const FileUpload = ({
   const validateFile = (file: File): boolean => {
     setError(null);
     
+    // Validate file extension
     const validExtensions = ['.csv', '.xlsx', '.xls'];
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     
@@ -31,8 +41,24 @@ const FileUpload = ({
       return false;
     }
     
+    // Validate MIME type (with fallback for browsers that don't report MIME correctly)
+    if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+      // Allow empty type as some browsers don't set it correctly
+      if (file.type !== '') {
+        setError('Invalid file type. Please upload a valid CSV or Excel file.');
+        return false;
+      }
+    }
+    
+    // Validate file size
     if (file.size > maxSize * 1024 * 1024) {
       setError(`File size must be less than ${maxSize}MB`);
+      return false;
+    }
+    
+    // Check for suspiciously small files (likely empty or corrupted)
+    if (file.size < 10) {
+      setError('File appears to be empty or corrupted');
       return false;
     }
     

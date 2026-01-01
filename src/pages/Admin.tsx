@@ -19,6 +19,21 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Car, Home, LogOut, Upload, Loader2, Eye } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import DOMPurify from 'dompurify';
+import { z } from 'zod';
+
+// Schema validation for driver data
+const driverSchema = z.object({
+  plate: z.string().min(1, 'Plate is required').max(50, 'Plate too long'),
+  employee_id: z.string().min(1, 'Employee ID is required').max(50, 'Employee ID too long'),
+  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  captain: z.string().min(1, 'Captain is required').max(100, 'Captain too long'),
+  phone: z.string().max(30, 'Phone too long').optional().nullable(),
+  telegram_phone: z.string().max(30, 'Telegram phone too long').optional().nullable(),
+  schedule: z.string().max(100, 'Schedule too long').optional().nullable(),
+  rest_day: z.string().max(50, 'Rest day too long').optional().nullable(),
+  status: z.string().max(50, 'Status too long').optional().nullable(),
+});
 
 interface DriverRow {
   plate: string;
@@ -31,6 +46,31 @@ interface DriverRow {
   rest_day?: string;
   status?: string;
 }
+
+// Sanitize cell value to prevent formula injection and XSS
+const sanitizeCellValue = (value: unknown): string => {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  
+  let strValue = String(value).trim();
+  
+  // Remove Excel/CSV formula injection characters at the start
+  // These could be used for formula injection attacks
+  const dangerousPrefixes = ['=', '+', '-', '@', '\t', '\r', '\n'];
+  while (dangerousPrefixes.some(prefix => strValue.startsWith(prefix))) {
+    strValue = strValue.substring(1).trim();
+  }
+  
+  // Strip any HTML/script tags using DOMPurify
+  strValue = DOMPurify.sanitize(strValue, { ALLOWED_TAGS: [] });
+  
+  // Remove any remaining HTML entities that might have been left
+  strValue = strValue.replace(/&[#\w]+;/g, '');
+  
+  // Limit length to prevent extremely long values
+  return strValue.substring(0, 500);
+};
 
 const Admin = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -91,13 +131,13 @@ const Admin = () => {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { raw: false });
           
-          // Map column names with normalization
+          // Map column names with normalization and sanitization
           const drivers: DriverRow[] = jsonData.map((row) => {
-            // Create a normalized key map
+            // Create a normalized key map with sanitized values
             const normalizedRow: Record<string, string> = {};
             for (const [key, value] of Object.entries(row)) {
               const normalizedKey = normalizeHeader(key);
-              normalizedRow[normalizedKey] = value !== undefined && value !== null ? String(value).trim() : '';
+              normalizedRow[normalizedKey] = sanitizeCellValue(value);
             }
             
             return {
@@ -113,10 +153,29 @@ const Admin = () => {
             };
           });
           
-          // Filter out rows without required fields
-          const validDrivers = drivers.filter(
-            (d) => d.plate && d.employee_id && d.name && d.captain
-          );
+          // Validate each driver against schema and filter out invalid rows
+          const validDrivers: DriverRow[] = [];
+          const invalidRows: number[] = [];
+          
+          drivers.forEach((driver, index) => {
+            const result = driverSchema.safeParse(driver);
+            if (result.success) {
+              // Only include if required fields are present
+              if (driver.plate && driver.employee_id && driver.name && driver.captain) {
+                validDrivers.push(driver);
+              } else {
+                invalidRows.push(index + 2); // +2 for header row and 0-indexing
+              }
+            } else {
+              invalidRows.push(index + 2);
+            }
+          });
+          
+          if (invalidRows.length > 0 && invalidRows.length <= 10) {
+            console.warn(`Invalid rows skipped: ${invalidRows.join(', ')}`);
+          } else if (invalidRows.length > 10) {
+            console.warn(`${invalidRows.length} invalid rows skipped`);
+          }
           
           resolve(validDrivers);
         } catch (error) {
