@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import RosterTable from '@/components/RosterTable';
 import RosterFilters from '@/components/RosterFilters';
 import RosterExport from '@/components/RosterExport';
+import { RosterShareActions } from '@/components/RosterShareActions';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,6 +28,7 @@ const Roster = () => {
     restDay: 'all',
     status: 'all',
   });
+  const [selectedDrivers, setSelectedDrivers] = useState<Driver[]>([]);
   const { user, isAdmin } = useAuth();
 
   const { data: drivers = [], isLoading, error } = useQuery({
@@ -56,6 +58,32 @@ const Roster = () => {
   const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
+
+  // Compute filtered drivers for share actions (matching table logic)
+  const filteredDrivers = useMemo(() => {
+    return drivers.filter((driver) => {
+      if (filters.captain && filters.captain !== 'all' && driver.captain !== filters.captain) return false;
+      if (filters.schedule && filters.schedule !== 'all' && driver.schedule !== filters.schedule) return false;
+      if (filters.restDay && filters.restDay !== 'all' && driver.rest_day !== filters.restDay) return false;
+      if (filters.status && filters.status !== 'all' && driver.status !== filters.status) return false;
+      
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          driver.plate.toLowerCase().includes(query) ||
+          driver.employee_id.toLowerCase().includes(query) ||
+          driver.name.toLowerCase().includes(query) ||
+          driver.phone?.toLowerCase().includes(query) ||
+          driver.telegram_phone?.toLowerCase().includes(query) ||
+          driver.captain.toLowerCase().includes(query) ||
+          driver.schedule?.toLowerCase().includes(query) ||
+          driver.rest_day?.toLowerCase().includes(query) ||
+          driver.status?.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    });
+  }, [drivers, searchQuery, filters]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -113,17 +141,24 @@ const Roster = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <RosterFilters
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              filters={filters}
-              onFilterChange={handleFilterChange}
-              filterOptions={filterOptions}
-            />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <RosterFilters
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                filters={filters}
+                onFilterChange={handleFilterChange}
+                filterOptions={filterOptions}
+              />
+              <RosterShareActions 
+                drivers={filteredDrivers} 
+                selectedDrivers={selectedDrivers}
+              />
+            </div>
             <RosterTable
               drivers={drivers}
               searchQuery={searchQuery}
               filters={filters}
+              onSelectionChange={setSelectedDrivers}
             />
           </div>
         )}

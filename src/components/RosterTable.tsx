@@ -42,11 +42,12 @@ interface RosterTableProps {
   drivers: Driver[];
   searchQuery: string;
   filters: Filters;
+  onSelectionChange?: (selectedDrivers: Driver[]) => void;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
 
-const RosterTable = ({ drivers, searchQuery, filters }: RosterTableProps) => {
+const RosterTable = ({ drivers, searchQuery, filters, onSelectionChange }: RosterTableProps) => {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -94,10 +95,11 @@ const RosterTable = ({ drivers, searchQuery, filters }: RosterTableProps) => {
   };
 
   const toggleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(new Set(filteredDrivers.map(d => d.id)));
-    } else {
-      setSelectedIds(new Set());
+    const newIds = checked ? new Set(filteredDrivers.map(d => d.id)) : new Set<string>();
+    setSelectedIds(newIds);
+    if (onSelectionChange) {
+      const selected = checked ? filteredDrivers : [];
+      onSelectionChange(selected);
     }
   };
 
@@ -109,6 +111,10 @@ const RosterTable = ({ drivers, searchQuery, filters }: RosterTableProps) => {
       newSet.delete(id);
     }
     setSelectedIds(newSet);
+    if (onSelectionChange) {
+      const selected = filteredDrivers.filter(d => newSet.has(d.id));
+      onSelectionChange(selected);
+    }
   };
 
   const handleSort = (key: ColumnKey) => {
