@@ -28,7 +28,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import EditDriverDialog from '@/components/EditDriverDialog';
 import { Driver, ColumnKey, ColumnDef } from '@/types/driver';
-import { getTelLink, getTelegramLink, formatPhoneForDisplay } from '@/lib/phone-utils';
+import { getTelLink, getTelegramLink, formatPhoneForDisplay, maskPhoneNumber } from '@/lib/phone-utils';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 
 interface Filters {
@@ -242,11 +242,22 @@ const RosterTable = ({ drivers, searchQuery, filters, onSelectionChange }: Roste
       case 'name':
         return <span className="font-medium">{driver.name}</span>;
       case 'phone': {
+        if (!driver.phone) return <span className="text-muted-foreground">-</span>;
+        
+        // Non-admin users see masked phone numbers (no clickable link)
+        if (!isAdmin) {
+          return (
+            <span className="inline-flex items-center gap-1 text-muted-foreground">
+              <Phone className="h-3 w-3" />
+              <span className="font-mono">{maskPhoneNumber(driver.phone)}</span>
+            </span>
+          );
+        }
+        
         const telLink = getTelLink(driver.phone);
-        if (!telLink) return <span className="text-muted-foreground">-</span>;
         return (
           <a 
-            href={telLink} 
+            href={telLink || '#'} 
             className="inline-flex items-center gap-1 text-primary hover:underline"
           >
             <Phone className="h-3 w-3" />
@@ -256,6 +267,18 @@ const RosterTable = ({ drivers, searchQuery, filters, onSelectionChange }: Roste
         );
       }
       case 'telegram': {
+        // Non-admin users cannot access Telegram links
+        if (!isAdmin) {
+          const hasPhone = driver.telegram_phone || driver.phone;
+          if (!hasPhone) return <span className="text-muted-foreground">-</span>;
+          return (
+            <span className="inline-flex items-center gap-1 text-muted-foreground">
+              <MessageCircle className="h-3 w-3" />
+              <span className="font-mono">{maskPhoneNumber(driver.telegram_phone || driver.phone)}</span>
+            </span>
+          );
+        }
+        
         const telegramLink = getTelegramLink(driver.telegram_phone, driver.phone);
         if (!telegramLink) return <span className="text-muted-foreground">-</span>;
         return (

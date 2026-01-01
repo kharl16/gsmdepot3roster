@@ -64,3 +64,30 @@ export function getTelegramLink(telegramPhone: string | null | undefined, fallba
   // Remove the + for the URL since we add it in the path
   return `https://t.me/${e164}`;
 }
+
+/**
+ * Mask phone number for privacy (e.g., +63 9** *** 1234)
+ * Shows country code and last 4 digits only
+ */
+export function maskPhoneNumber(phone: string | null | undefined): string {
+  if (!phone) return '-';
+  const e164 = normalizePhoneToE164(phone);
+  if (!e164) return phone;
+  
+  // For Philippine numbers (+63XXXXXXXXXX), show +63 9** *** XXXX
+  if (e164.startsWith('+63') && e164.length === 13) {
+    const last4 = e164.slice(-4);
+    return `+63 9** *** ${last4}`;
+  }
+  
+  // For other numbers, show first 3 chars + masked middle + last 4
+  if (e164.length > 7) {
+    const prefix = e164.slice(0, 3);
+    const last4 = e164.slice(-4);
+    const maskedLength = e164.length - 7;
+    const masked = '*'.repeat(maskedLength);
+    return `${prefix}${masked}${last4}`;
+  }
+  
+  return e164;
+}

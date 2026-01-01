@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Send, Download, MessageSquare } from 'lucide-react';
 import { Driver } from '@/types/driver';
 import { normalizePhoneToE164, formatPhoneForDisplay } from '@/lib/phone-utils';
+import { useAuth } from '@/hooks/useAuth';
 
 interface RosterShareActionsProps {
   drivers: Driver[];
@@ -13,6 +14,7 @@ interface RosterShareActionsProps {
 const TELEGRAM_CHAR_LIMIT = 3500;
 
 export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActionsProps) {
+  const { isAdmin } = useAuth();
   const [showChunkModal, setShowChunkModal] = useState(false);
   const [messageChunks, setMessageChunks] = useState<string[]>([]);
 
@@ -105,6 +107,11 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
   const label = selectedDrivers.length > 0 
     ? `${validCount} selected` 
     : `${validCount} contacts`;
+
+  // Only admin users can access contact export features
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <>
