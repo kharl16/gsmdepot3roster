@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import FileUpload from '@/components/FileUpload';
+import UserManagement from '@/components/UserManagement';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -421,6 +422,9 @@ const Admin = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* User Management Section */}
+          <UserManagement />
         </div>
       </main>
     </div>
