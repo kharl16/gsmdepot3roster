@@ -31,7 +31,7 @@ interface AdminUser {
   id: string;
   user_id: string;
   role: string;
-  email: string;
+  email: string | null;
 }
 
 const UserManagement = () => {
@@ -41,11 +41,11 @@ const UserManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch admin users
+  // Fetch admin users with their emails from profiles
   const { data: adminUsers = [], isLoading } = useQuery({
     queryKey: ['admin-users'],
     queryFn: async () => {
-      // First get all user roles
+      // Get all admin roles
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('*')
@@ -53,41 +53,45 @@ const UserManagement = () => {
 
       if (rolesError) throw rolesError;
 
-      // Then fetch user emails from a custom RPC or by querying auth users
-      // Since we can't directly query auth.users, we'll use a workaround
-      // by displaying user_id and letting admins know the email
-      const usersWithEmails: AdminUser[] = [];
-      
-      for (const role of roles || []) {
-        // We'll try to get user info - this requires the user to be the same
-        // For now, we'll display what we have
-        usersWithEmails.push({
+      // Get profiles for these users
+      const userIds = (roles || []).map(r => r.user_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Map roles with emails
+      const usersWithEmails: AdminUser[] = (roles || []).map(role => {
+        const profile = profiles?.find(p => p.id === role.user_id);
+        return {
           id: role.id,
           user_id: role.user_id,
           role: role.role,
-          email: role.user_id, // Placeholder - will be replaced if we can get email
-        });
-      }
+          email: profile?.email || null,
+        };
+      });
 
       return usersWithEmails;
     },
   });
 
-  // Add admin mutation
+  // Add admin mutation using edge function
   const addAdminMutation = useMutation({
     mutationFn: async (email: string) => {
-      // First, we need to find the user by email
-      // This is typically done via an edge function or admin API
-      // For now, we'll show an error if the user doesn't exist
-      
-      // Check if email is valid
       if (!email || !email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
 
-      // Since we can't query auth.users directly from client, 
-      // we'll inform the user about the limitation
-      throw new Error('To add a new admin, please contact the system administrator or use the database directly to add the user_id to user_roles table.');
+      const { data, error } = await supabase.functions.invoke('manage-admin', {
+        body: { action: 'add', email },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
@@ -198,7 +202,7 @@ const UserManagement = () => {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead>User ID</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -219,13 +223,17 @@ const UserManagement = () => {
               ) : (
                 adminUsers.map((adminUser) => (
                   <TableRow key={adminUser.id}>
-                    <TableCell className="font-mono text-sm">
-                      {adminUser.user_id}
-                      {adminUser.user_id === user?.id && (
-                        <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          You
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {adminUser.email || <span className="text-muted-foreground italic">No email</span>}
                         </span>
-                      )}
+                        {adminUser.user_id === user?.id && (
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                            You
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
@@ -248,7 +256,7 @@ const UserManagement = () => {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Remove Admin Access</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to remove admin access for this user? 
+                              Are you sure you want to remove admin access for {adminUser.email || 'this user'}? 
                               They will no longer be able to access the admin panel.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
@@ -272,7 +280,7 @@ const UserManagement = () => {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Note: To add new admins, users must first create an account. Then their user ID can be added to the admin list.
+          Enter an email address of a registered user to grant them admin access.
         </p>
       </CardContent>
     </Card>
