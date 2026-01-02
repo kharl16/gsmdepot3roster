@@ -238,12 +238,16 @@ const Admin = () => {
         if (deleteError) throw deleteError;
       }
       
-      // Upsert drivers (insert or update based on plate)
-      const { error: upsertError } = await supabase
-        .from('taxi_roster')
-        .upsert(drivers, { onConflict: 'plate' });
-      
-      if (upsertError) throw upsertError;
+      // Upsert drivers in batches of 500 to handle large files
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < drivers.length; i += BATCH_SIZE) {
+        const batch = drivers.slice(i, i + BATCH_SIZE);
+        const { error: upsertError } = await supabase
+          .from('taxi_roster')
+          .upsert(batch, { onConflict: 'plate' });
+        
+        if (upsertError) throw upsertError;
+      }
       
       // Log the upload
       await supabase.from('roster_uploads').insert({
