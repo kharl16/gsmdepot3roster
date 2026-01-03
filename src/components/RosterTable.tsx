@@ -294,7 +294,7 @@ const RosterTable = ({ drivers, searchQuery, filters, onSelectionChange }: Roste
         );
       }
       case 'captain':
-        return driver.captain;
+        return driver.captain === '0' ? <span className="text-muted-foreground">Unassigned</span> : driver.captain;
       case 'schedule':
         return driver.schedule || '-';
       case 'rest_day':
