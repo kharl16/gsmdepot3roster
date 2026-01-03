@@ -12,21 +12,22 @@ interface RosterShareActionsProps {
 }
 
 const TELEGRAM_CHAR_LIMIT = 3500;
+const VCF_BATCH_SIZE = 100;
 
 export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActionsProps) {
   const { isAdmin } = useAuth();
   const [showChunkModal, setShowChunkModal] = useState(false);
+  const [showVcfBatchModal, setShowVcfBatchModal] = useState(false);
   const [messageChunks, setMessageChunks] = useState<string[]>([]);
 
   const driversToUse = selectedDrivers.length > 0 ? selectedDrivers : drivers;
+  const driversWithPhone = driversToUse.filter(d => d.phone);
 
   const generateContactLines = (): string[] => {
-    return driversToUse
-      .filter(d => d.phone)
-      .map(d => {
-        const phone = formatPhoneForDisplay(d.phone);
-        return `${d.name} — ${phone}`;
-      });
+    return driversWithPhone.map(d => {
+      const phone = formatPhoneForDisplay(d.phone);
+      return `${d.name} — ${phone}`;
+    });
   };
 
   const splitIntoChunks = (lines: string[]): string[] => {
@@ -66,8 +67,8 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     window.open(`https://t.me/share/url?text=${encoded}`, '_blank');
   };
 
-  const generateVCard = (): string => {
-    const vcards = driversToUse
+  const generateVCard = (driversSubset: Driver[]): string => {
+    const vcards = driversSubset
       .filter(d => d.phone)
       .map(d => {
         const phone = normalizePhoneToE164(d.phone);
@@ -85,12 +86,13 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     return vcards.join('\n');
   };
 
-  const handleDownloadVCF = () => {
-    const vcfContent = generateVCard();
+  const downloadVcfBatch = (startIndex: number, endIndex: number) => {
+    const batchDrivers = driversWithPhone.slice(startIndex, endIndex);
+    const vcfContent = generateVCard(batchDrivers);
     if (!vcfContent) return;
 
     const date = new Date().toISOString().split('T')[0];
-    const filename = `taxi-roster-contacts-${date}.vcf`;
+    const filename = `taxi-roster-contacts-${startIndex + 1}-${Math.min(endIndex, driversWithPhone.length)}-${date}.vcf`;
     
     const blob = new Blob([vcfContent], { type: 'text/vcard;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -103,7 +105,33 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     URL.revokeObjectURL(url);
   };
 
-  const validCount = driversToUse.filter(d => d.phone).length;
+  const handleDownloadVCF = () => {
+    if (driversWithPhone.length === 0) return;
+
+    if (driversWithPhone.length <= VCF_BATCH_SIZE) {
+      downloadVcfBatch(0, driversWithPhone.length);
+    } else {
+      setShowVcfBatchModal(true);
+    }
+  };
+
+  const getVcfBatches = () => {
+    const batches: { start: number; end: number; label: string }[] = [];
+    const total = driversWithPhone.length;
+    
+    for (let i = 0; i < total; i += VCF_BATCH_SIZE) {
+      const start = i;
+      const end = Math.min(i + VCF_BATCH_SIZE, total);
+      batches.push({
+        start,
+        end,
+        label: `${start + 1} - ${end}`
+      });
+    }
+    return batches;
+  };
+
+  const validCount = driversWithPhone.length;
   const label = selectedDrivers.length > 0 
     ? `${validCount} selected` 
     : `${validCount} contacts`;
@@ -164,6 +192,33 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
               >
                 <Send className="h-4 w-4" />
                 Open Message {index + 1}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showVcfBatchModal} onOpenChange={setShowVcfBatchModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Download Contacts
+            </DialogTitle>
+            <DialogDescription>
+              {driversWithPhone.length} contacts will be downloaded in batches of {VCF_BATCH_SIZE}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 mt-4 max-h-64 overflow-y-auto">
+            {getVcfBatches().map((batch, index) => (
+              <Button
+                key={index}
+                variant="outline"
+                onClick={() => downloadVcfBatch(batch.start, batch.end)}
+                className="justify-start gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Contacts {batch.label}
               </Button>
             ))}
           </div>
