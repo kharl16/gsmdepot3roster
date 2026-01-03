@@ -24,8 +24,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Users, UserPlus, Trash2, Loader2, Mail } from 'lucide-react';
+import { Users, UserPlus, Trash2, Loader2, Mail, Lock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 interface AdminUser {
   id: string;
@@ -36,6 +38,8 @@ interface AdminUser {
 
 const UserManagement = () => {
   const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [createIfNotExists, setCreateIfNotExists] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -79,13 +83,17 @@ const UserManagement = () => {
 
   // Add admin mutation using edge function
   const addAdminMutation = useMutation({
-    mutationFn: async (email: string) => {
+    mutationFn: async ({ email, password, createIfNotExists }: { email: string; password?: string; createIfNotExists: boolean }) => {
       if (!email || !email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
 
+      if (createIfNotExists && (!password || password.length < 6)) {
+        throw new Error('Password must be at least 6 characters when creating a new user');
+      }
+
       const { data, error } = await supabase.functions.invoke('manage-admin', {
-        body: { action: 'add', email },
+        body: { action: 'add', email, password: createIfNotExists ? password : undefined, createIfNotExists },
       });
 
       if (error) throw error;
@@ -96,6 +104,8 @@ const UserManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setNewAdminEmail('');
+      setNewAdminPassword('');
+      setCreateIfNotExists(false);
       toast({
         title: 'Admin added',
         description: 'The user has been granted admin access.',
@@ -142,7 +152,11 @@ const UserManagement = () => {
     
     setIsAdding(true);
     try {
-      await addAdminMutation.mutateAsync(newAdminEmail.trim());
+      await addAdminMutation.mutateAsync({ 
+        email: newAdminEmail.trim(), 
+        password: newAdminPassword, 
+        createIfNotExists 
+      });
     } finally {
       setIsAdding(false);
     }
@@ -174,27 +188,53 @@ const UserManagement = () => {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Add Admin Form */}
-        <form onSubmit={handleAddAdmin} className="flex gap-2">
-          <div className="relative flex-1">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="email"
-              placeholder="Enter email to add as admin..."
-              value={newAdminEmail}
-              onChange={(e) => setNewAdminEmail(e.target.value)}
-              className="pl-9"
-            />
+        <form onSubmit={handleAddAdmin} className="space-y-4">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="email"
+                placeholder="Enter email to add as admin..."
+                value={newAdminEmail}
+                onChange={(e) => setNewAdminEmail(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button type="submit" disabled={isAdding || !newAdminEmail.trim() || (createIfNotExists && newAdminPassword.length < 6)}>
+              {isAdding ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add Admin
+                </>
+              )}
+            </Button>
           </div>
-          <Button type="submit" disabled={isAdding || !newAdminEmail.trim()}>
-            {isAdding ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add Admin
-              </>
-            )}
-          </Button>
+          
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="createIfNotExists" 
+              checked={createIfNotExists}
+              onCheckedChange={(checked) => setCreateIfNotExists(checked === true)}
+            />
+            <Label htmlFor="createIfNotExists" className="text-sm cursor-pointer">
+              Create user account if not exists
+            </Label>
+          </div>
+          
+          {createIfNotExists && (
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="password"
+                placeholder="Password for new user (min 6 characters)"
+                value={newAdminPassword}
+                onChange={(e) => setNewAdminPassword(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          )}
         </form>
 
         {/* Admin Users Table */}
