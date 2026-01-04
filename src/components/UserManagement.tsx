@@ -24,7 +24,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Users, UserPlus, Trash2, Loader2, Mail, Lock } from 'lucide-react';
+import { Users, UserPlus, Trash2, Loader2, Mail, Lock, KeyRound } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -41,6 +41,9 @@ const UserManagement = () => {
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [createIfNotExists, setCreateIfNotExists] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [resetPasswordEmail, setResetPasswordEmail] = useState('');
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -146,6 +149,43 @@ const UserManagement = () => {
     },
   });
 
+  // Reset password mutation
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      if (!email || !email.includes('@')) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+      }
+
+      const { data, error } = await supabase.functions.invoke('manage-admin', {
+        body: { action: 'reset-password', email, password },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
+    },
+    onSuccess: () => {
+      setResetPasswordEmail('');
+      setResetPasswordValue('');
+      toast({
+        title: 'Password reset',
+        description: 'The user password has been updated successfully.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Failed to reset password',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAdminEmail.trim()) return;
@@ -159,6 +199,21 @@ const UserManagement = () => {
       });
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPasswordEmail.trim() || !resetPasswordValue.trim()) return;
+    
+    setIsResetting(true);
+    try {
+      await resetPasswordMutation.mutateAsync({ 
+        email: resetPasswordEmail.trim(), 
+        password: resetPasswordValue 
+      });
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -235,6 +290,52 @@ const UserManagement = () => {
               />
             </div>
           )}
+        </form>
+
+        {/* Reset Password Form */}
+        <form onSubmit={handleResetPassword} className="space-y-4 border-t pt-6">
+          <h4 className="text-sm font-medium flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Reset User Password
+          </h4>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="email"
+                placeholder="User email address"
+                value={resetPasswordEmail}
+                onChange={(e) => setResetPasswordEmail(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="password"
+                placeholder="New password (min 6 characters)"
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button 
+              type="submit" 
+              variant="secondary"
+              disabled={isResetting || !resetPasswordEmail.trim() || resetPasswordValue.length < 6}
+            >
+              {isResetting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  Reset Password
+                </>
+              )}
+            </Button>
+          </div>
         </form>
 
         {/* Admin Users Table */}
