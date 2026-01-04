@@ -43,26 +43,26 @@ const RosterFilters = ({
   filterOptions,
 }: RosterFiltersProps) => {
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col sm:flex-row gap-3 flex-1">
       {/* Search */}
-      <div className="relative">
+      <div className="relative flex-1 max-w-md">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search all columns..."
+          placeholder="Search drivers..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-10"
+          className="pl-10 bg-muted/50 border-0 focus-visible:ring-primary"
         />
       </div>
       
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-2">
         {/* Captain Filter */}
         <Select 
           value={filters.captain} 
           onValueChange={(value) => onFilterChange('captain', value)}
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[180px] bg-muted/50 border-0">
             <SelectValue placeholder="All Captains" />
           </SelectTrigger>
           <SelectContent>
@@ -80,7 +80,7 @@ const RosterFilters = ({
           value={filters.schedule} 
           onValueChange={(value) => onFilterChange('schedule', value)}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[150px] bg-muted/50 border-0">
             <SelectValue placeholder="All Schedules" />
           </SelectTrigger>
           <SelectContent>
@@ -98,7 +98,7 @@ const RosterFilters = ({
           value={filters.restDay} 
           onValueChange={(value) => onFilterChange('restDay', value)}
         >
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-[130px] bg-muted/50 border-0">
             <SelectValue placeholder="All RDs" />
           </SelectTrigger>
           <SelectContent>
@@ -116,7 +116,7 @@ const RosterFilters = ({
           value={filters.status} 
           onValueChange={(value) => onFilterChange('status', value)}
         >
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-[130px] bg-muted/50 border-0">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>

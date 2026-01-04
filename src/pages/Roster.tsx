@@ -10,7 +10,7 @@ import { RosterShareActions } from '@/components/RosterShareActions';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Car, LogIn, LogOut, Settings } from 'lucide-react';
+import { Car, LogIn, LogOut, Settings, Users, TrendingUp } from 'lucide-react';
 import { Driver } from '@/types/driver';
 
 interface Filters {
@@ -96,20 +96,26 @@ const Roster = () => {
     });
   }, [drivers, searchQuery, filters]);
 
+  // Stats
+  const activeDrivers = drivers.filter(d => d.status === 'active').length;
+  const uniqueCaptains = filterOptions.captains.length;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card">
+      <header className="gradient-header border-b border-border/10 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary rounded-lg">
-                <Car className="h-6 w-6 text-primary-foreground" />
+            <div className="flex items-center gap-4 animate-fade-in">
+              <div className="p-3 gradient-primary rounded-xl shadow-glow">
+                <Car className="h-7 w-7 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">Taxi Driver Roster</h1>
-                <p className="text-sm text-muted-foreground">
-                  {drivers.length} driver{drivers.length !== 1 ? 's' : ''} registered
+                <h1 className="text-2xl font-bold text-white tracking-tight">
+                  Taxi Driver Roster
+                </h1>
+                <p className="text-sm text-white/70">
+                  Fleet management dashboard
                 </p>
               </div>
             </div>
@@ -119,20 +125,20 @@ const Roster = () => {
               {user ? (
                 <>
                   {isAdmin && (
-                    <Button asChild variant="outline">
+                    <Button asChild variant="secondary" className="hover-lift">
                       <Link to="/admin">
                         <Settings className="h-4 w-4 mr-2" />
-                        Admin Panel
+                        Admin
                       </Link>
                     </Button>
                   )}
-                  <Button variant="outline" onClick={signOut}>
+                  <Button variant="outline" onClick={signOut} className="bg-white/10 border-white/20 text-white hover:bg-white/20">
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
                   </Button>
                 </>
               ) : (
-                <Button asChild variant="outline">
+                <Button asChild className="gradient-primary hover-lift shadow-glow">
                   <Link to="/auth">
                     <LogIn className="h-4 w-4 mr-2" />
                     Admin Login
@@ -144,41 +150,87 @@ const Roster = () => {
         </div>
       </header>
 
+      {/* Stats Bar */}
+      <div className="bg-card border-b">
+        <div className="container mx-auto px-4 py-4">
+          <div className="grid grid-cols-3 gap-4 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{drivers.length}</p>
+                <p className="text-xs text-muted-foreground">Total Drivers</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <div className="p-2 rounded-lg bg-success/10">
+                <TrendingUp className="h-5 w-5 text-success" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{activeDrivers}</p>
+                <p className="text-xs text-muted-foreground">Active Drivers</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <div className="p-2 rounded-lg bg-accent/10">
+                <Car className="h-5 w-5 text-accent" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{uniqueCaptains}</p>
+                <p className="text-xs text-muted-foreground">Team Captains</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         {error ? (
-          <div className="text-center py-12 text-destructive">
-            Failed to load roster. Please try again later.
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10 mb-4">
+              <Car className="h-8 w-8 text-destructive" />
+            </div>
+            <p className="text-destructive font-medium">Failed to load roster</p>
+            <p className="text-sm text-muted-foreground mt-1">Please try again later</p>
           </div>
         ) : isLoading ? (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-pulse">
             <div className="flex gap-4">
               <Skeleton className="h-10 flex-1" />
               <Skeleton className="h-10 w-[200px]" />
             </div>
-            <Skeleton className="h-[400px]" />
+            <Skeleton className="h-[500px] rounded-xl" />
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <RosterFilters
+          <div className="space-y-4 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+            {/* Filters Card */}
+            <div className="bg-card rounded-xl border shadow-sm p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <RosterFilters
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  filters={filters}
+                  onFilterChange={handleFilterChange}
+                  filterOptions={filterOptions}
+                />
+                <RosterShareActions 
+                  drivers={filteredDrivers} 
+                  selectedDrivers={selectedDrivers}
+                />
+              </div>
+            </div>
+            
+            {/* Table Card */}
+            <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+              <RosterTable
+                drivers={drivers}
                 searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
                 filters={filters}
-                onFilterChange={handleFilterChange}
-                filterOptions={filterOptions}
-              />
-              <RosterShareActions 
-                drivers={filteredDrivers} 
-                selectedDrivers={selectedDrivers}
+                onSelectionChange={setSelectedDrivers}
               />
             </div>
-            <RosterTable
-              drivers={drivers}
-              searchQuery={searchQuery}
-              filters={filters}
-              onSelectionChange={setSelectedDrivers}
-            />
           </div>
         )}
       </main>
