@@ -163,6 +163,61 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'reset-password') {
+      if (!email || !password) {
+        return new Response(JSON.stringify({ error: 'Email and new password are required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (password.length < 6) {
+        return new Response(JSON.stringify({ error: 'Password must be at least 6 characters' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Find user by email
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
+      
+      if (authError) {
+        console.error('Error listing users:', authError);
+        return new Response(JSON.stringify({ error: 'Failed to search users' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const targetUser = authData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+      
+      if (!targetUser) {
+        return new Response(JSON.stringify({ error: 'User not found with that email' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Update the user's password
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        targetUser.id,
+        { password }
+      );
+
+      if (updateError) {
+        console.error('Error updating password:', updateError);
+        return new Response(JSON.stringify({ error: `Failed to reset password: ${updateError.message}` }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log('Successfully reset password for:', targetUser.email);
+      return new Response(JSON.stringify({ success: true, userId: targetUser.id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
