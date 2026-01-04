@@ -8,8 +8,13 @@ import {
 } from '@/components/ui/select';
 import { Search } from 'lucide-react';
 
+interface CaptainOption {
+  name: string;
+  count: number;
+}
+
 interface FilterOptions {
-  captains: string[];
+  captains: CaptainOption[];
   schedules: string[];
   restDays: string[];
   statuses: string[];
@@ -57,14 +62,14 @@ const RosterFilters = ({
           value={filters.captain} 
           onValueChange={(value) => onFilterChange('captain', value)}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Captains" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Captains</SelectItem>
             {filterOptions.captains.map((captain) => (
-              <SelectItem key={captain} value={captain}>
-                {captain}
+              <SelectItem key={captain.name} value={captain.name}>
+                {captain.name} ({captain.count})
               </SelectItem>
             ))}
           </SelectContent>

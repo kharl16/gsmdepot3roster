@@ -45,9 +45,20 @@ const Roster = () => {
     },
   });
 
-  // Extract unique values for filter options
+  // Extract unique values for filter options with counts
   const filterOptions = useMemo(() => {
-    const captains = [...new Set(drivers.map((d) => d.captain))].filter(Boolean).sort();
+    // Count members per captain
+    const captainCounts = drivers.reduce((acc, d) => {
+      if (d.captain) {
+        acc[d.captain] = (acc[d.captain] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const captains = Object.entries(captainCounts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, count]) => ({ name, count }));
+    
     const schedules = [...new Set(drivers.map((d) => d.schedule))].filter(Boolean).sort() as string[];
     const restDays = [...new Set(drivers.map((d) => d.rest_day))].filter(Boolean).sort() as string[];
     const statuses = [...new Set(drivers.map((d) => d.status))].filter(Boolean).sort() as string[];
