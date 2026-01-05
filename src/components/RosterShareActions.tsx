@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Download } from 'lucide-react';
+import { Download, FileSpreadsheet } from 'lucide-react';
 import { Driver } from '@/types/driver';
-import { normalizePhoneToE164 } from '@/lib/phone-utils';
+import { normalizePhoneToE164, formatPhoneForDisplay } from '@/lib/phone-utils';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface RosterShareActionsProps {
   drivers: Driver[];
@@ -68,6 +69,43 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     }
   };
 
+  const handleDownloadCSV = () => {
+    if (driversToUse.length === 0) return;
+
+    const headers = ['Plate', 'Employee ID', 'Name', 'Phone', 'Telegram Phone', 'Captain', 'Schedule', 'Rest Day', 'Status'];
+    const rows = driversToUse.map(d => [
+      d.plate,
+      d.employee_id,
+      d.name,
+      formatPhoneForDisplay(d.phone),
+      formatPhoneForDisplay(d.telegram_phone),
+      d.captain === '0' ? 'Unassigned' : d.captain,
+      d.schedule || '',
+      d.rest_day || '',
+      d.status || ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `taxi-roster-${date}.csv`;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(`Downloaded ${driversToUse.length} records as CSV`);
+  };
+
   const getVcfBatches = () => {
     const batches: { start: number; end: number; label: string }[] = [];
     const total = driversWithPhone.length;
@@ -85,9 +123,10 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
   };
 
   const validCount = driversWithPhone.length;
+  const totalCount = driversToUse.length;
   const label = selectedDrivers.length > 0 
-    ? `${validCount} selected` 
-    : `${validCount} contacts`;
+    ? `${totalCount} selected` 
+    : `${totalCount} records`;
 
   if (!isAdmin) {
     return null;
@@ -96,6 +135,17 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
   return (
     <>
       <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDownloadCSV}
+          disabled={totalCount === 0}
+          className="gap-2"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          <span className="hidden sm:inline">Download CSV</span>
+          <span className="sm:hidden">CSV</span>
+        </Button>
         <Button
           variant="outline"
           size="sm"
