@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Download, FileSpreadsheet, Table } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Download, FileSpreadsheet, Table, ChevronDown, Contact } from 'lucide-react';
 import { Driver } from '@/types/driver';
 import { normalizePhoneToE164, formatPhoneForDisplay } from '@/lib/phone-utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -165,39 +171,38 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
   return (
     <>
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDownloadXLSX}
-          disabled={totalCount === 0}
-          className="gap-2"
-        >
-          <Table className="h-4 w-4" />
-          <span className="hidden sm:inline">Excel</span>
-          <span className="sm:hidden">XLSX</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDownloadCSV}
-          disabled={totalCount === 0}
-          className="gap-2"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          <span className="hidden sm:inline">CSV</span>
-          <span className="sm:hidden">CSV</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDownloadVCF}
-          disabled={validCount === 0}
-          className="gap-2"
-        >
-          <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">VCF</span>
-          <span className="sm:hidden">VCF</span>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={totalCount === 0}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              <span>Export</span>
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-popover">
+            <DropdownMenuItem onClick={handleDownloadXLSX} className="gap-2 cursor-pointer">
+              <Table className="h-4 w-4" />
+              Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2 cursor-pointer">
+              <FileSpreadsheet className="h-4 w-4" />
+              CSV (.csv)
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={handleDownloadVCF} 
+              disabled={validCount === 0}
+              className="gap-2 cursor-pointer"
+            >
+              <Contact className="h-4 w-4" />
+              Contacts (.vcf)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <span className="text-xs text-muted-foreground hidden md:inline">
           ({label})
         </span>
