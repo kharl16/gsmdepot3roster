@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Phone, MessageCircle, GripVertical } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Phone, MessageCircle, GripVertical, Copy } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -61,6 +61,29 @@ const RosterTable = ({ drivers, searchQuery, filters, onSelectionChange }: Roste
   // Drag state
   const draggedColumn = useRef<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleCopyRow = (driver: Driver) => {
+    const rowData = columns.map(col => {
+      switch (col.key) {
+        case 'plate': return driver.plate;
+        case 'employee_id': return driver.employee_id;
+        case 'name': return driver.name;
+        case 'phone': return driver.phone || '';
+        case 'telegram': return driver.telegram_phone || driver.phone || '';
+        case 'captain': return driver.captain === '0' ? 'Unassigned' : driver.captain;
+        case 'schedule': return driver.schedule || '';
+        case 'rest_day': return driver.rest_day || '';
+        case 'status': return driver.status || '';
+        default: return '';
+      }
+    }).join('\t');
+    
+    navigator.clipboard.writeText(rowData).then(() => {
+      toast.success('Row copied to clipboard');
+    }).catch(() => {
+      toast.error('Failed to copy row');
+    });
+  };
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -366,6 +389,7 @@ const RosterTable = ({ drivers, searchQuery, filters, onSelectionChange }: Roste
                   />
                 </TableHead>
               )}
+              <TableHead className="w-[50px]"></TableHead>
               {isAdmin && <TableHead className="w-[80px]"></TableHead>}
               {columns.map((col, index) => (
                 <TableHead 
@@ -411,6 +435,17 @@ const RosterTable = ({ drivers, searchQuery, filters, onSelectionChange }: Roste
                     />
                   </TableCell>
                 )}
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleCopyRow(driver)}
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    title="Copy row"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </TableCell>
                 {isAdmin && (
                   <TableCell>
                     <div className="flex gap-1">
