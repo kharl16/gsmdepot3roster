@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Download, FileSpreadsheet } from 'lucide-react';
+import { Download, FileSpreadsheet, Table } from 'lucide-react';
 import { Driver } from '@/types/driver';
 import { normalizePhoneToE164, formatPhoneForDisplay } from '@/lib/phone-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
 interface RosterShareActionsProps {
   drivers: Driver[];
@@ -20,6 +21,20 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
 
   const driversToUse = selectedDrivers.length > 0 ? selectedDrivers : drivers;
   const driversWithPhone = driversToUse.filter(d => d.phone);
+
+  const getExportData = () => {
+    return driversToUse.map(d => ({
+      'Plate': d.plate,
+      'Employee ID': d.employee_id,
+      'Name': d.name,
+      'Phone': formatPhoneForDisplay(d.phone),
+      'Telegram Phone': formatPhoneForDisplay(d.telegram_phone),
+      'Captain': d.captain === '0' ? 'Unassigned' : d.captain,
+      'Schedule': d.schedule || '',
+      'Rest Day': d.rest_day || '',
+      'Status': d.status || ''
+    }));
+  };
 
   const generateVCard = (driversSubset: Driver[]): string => {
     const vcards = driversSubset
@@ -72,23 +87,9 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
   const handleDownloadCSV = () => {
     if (driversToUse.length === 0) return;
 
-    const headers = ['Plate', 'Employee ID', 'Name', 'Phone', 'Telegram Phone', 'Captain', 'Schedule', 'Rest Day', 'Status'];
-    const rows = driversToUse.map(d => [
-      d.plate,
-      d.employee_id,
-      d.name,
-      formatPhoneForDisplay(d.phone),
-      formatPhoneForDisplay(d.telegram_phone),
-      d.captain === '0' ? 'Unassigned' : d.captain,
-      d.schedule || '',
-      d.rest_day || '',
-      d.status || ''
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
+    const data = getExportData();
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
 
     const date = new Date().toISOString().split('T')[0];
     const filename = `taxi-roster-${date}.csv`;
@@ -104,6 +105,35 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     URL.revokeObjectURL(url);
 
     toast.success(`Downloaded ${driversToUse.length} records as CSV`);
+  };
+
+  const handleDownloadXLSX = () => {
+    if (driversToUse.length === 0) return;
+
+    const data = getExportData();
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 10 },  // Plate
+      { wch: 12 },  // Employee ID
+      { wch: 25 },  // Name
+      { wch: 18 },  // Phone
+      { wch: 18 },  // Telegram Phone
+      { wch: 15 },  // Captain
+      { wch: 12 },  // Schedule
+      { wch: 12 },  // Rest Day
+      { wch: 10 },  // Status
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Roster');
+
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `taxi-roster-${date}.xlsx`;
+    
+    XLSX.writeFile(workbook, filename);
+    toast.success(`Downloaded ${driversToUse.length} records as Excel`);
   };
 
   const getVcfBatches = () => {
@@ -138,12 +168,23 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
         <Button
           variant="outline"
           size="sm"
+          onClick={handleDownloadXLSX}
+          disabled={totalCount === 0}
+          className="gap-2"
+        >
+          <Table className="h-4 w-4" />
+          <span className="hidden sm:inline">Excel</span>
+          <span className="sm:hidden">XLSX</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleDownloadCSV}
           disabled={totalCount === 0}
           className="gap-2"
         >
           <FileSpreadsheet className="h-4 w-4" />
-          <span className="hidden sm:inline">Download CSV</span>
+          <span className="hidden sm:inline">CSV</span>
           <span className="sm:hidden">CSV</span>
         </Button>
         <Button
@@ -154,7 +195,7 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
           className="gap-2"
         >
           <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">Download VCF</span>
+          <span className="hidden sm:inline">VCF</span>
           <span className="sm:hidden">VCF</span>
         </Button>
         <span className="text-xs text-muted-foreground hidden md:inline">
