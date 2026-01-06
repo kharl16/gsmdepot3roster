@@ -5,7 +5,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import RosterTable from '@/components/RosterTable';
 import RosterFilters from '@/components/RosterFilters';
-import RosterExport from '@/components/RosterExport';
 import { RosterShareActions } from '@/components/RosterShareActions';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';

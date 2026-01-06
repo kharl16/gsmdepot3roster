@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Download, FileSpreadsheet, Table, ChevronDown, Contact, Printer } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Download, FileSpreadsheet, Table, ChevronDown, Contact, Printer, Settings2 } from 'lucide-react';
 import { Driver } from '@/types/driver';
 import { normalizePhoneToE164, formatPhoneForDisplay } from '@/lib/phone-utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,26 +23,57 @@ interface RosterShareActionsProps {
 
 const VCF_BATCH_SIZE = 100;
 
+type ExportColumn = {
+  key: keyof Driver | 'formattedPhone' | 'formattedTelegram' | 'formattedCaptain';
+  label: string;
+  getValue: (d: Driver) => string;
+};
+
+const ALL_EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'plate', label: 'Plate', getValue: (d) => d.plate },
+  { key: 'employee_id', label: 'Employee ID', getValue: (d) => d.employee_id },
+  { key: 'name', label: 'Name', getValue: (d) => d.name },
+  { key: 'formattedPhone', label: 'Phone', getValue: (d) => formatPhoneForDisplay(d.phone) },
+  { key: 'formattedTelegram', label: 'Telegram Phone', getValue: (d) => formatPhoneForDisplay(d.telegram_phone) },
+  { key: 'formattedCaptain', label: 'Captain', getValue: (d) => d.captain === '0' ? 'Unassigned' : d.captain },
+  { key: 'schedule', label: 'Schedule', getValue: (d) => d.schedule || '' },
+  { key: 'rest_day', label: 'Rest Day', getValue: (d) => d.rest_day || '' },
+  { key: 'status', label: 'Status', getValue: (d) => d.status || '' },
+];
+
+const DEFAULT_SELECTED_COLUMNS = ALL_EXPORT_COLUMNS.map(c => c.key);
+
 export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActionsProps) {
   const { isAdmin } = useAuth();
   const [showVcfBatchModal, setShowVcfBatchModal] = useState(false);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(DEFAULT_SELECTED_COLUMNS);
+  const [pendingExportType, setPendingExportType] = useState<'csv' | 'xlsx' | 'print' | null>(null);
 
   const driversToUse = selectedDrivers.length > 0 ? selectedDrivers : drivers;
   const driversWithPhone = driversToUse.filter(d => d.phone);
 
-  const getExportData = () => {
-    return driversToUse.map(d => ({
-      'Plate': d.plate,
-      'Employee ID': d.employee_id,
-      'Name': d.name,
-      'Phone': formatPhoneForDisplay(d.phone),
-      'Telegram Phone': formatPhoneForDisplay(d.telegram_phone),
-      'Captain': d.captain === '0' ? 'Unassigned' : d.captain,
-      'Schedule': d.schedule || '',
-      'Rest Day': d.rest_day || '',
-      'Status': d.status || ''
-    }));
+  const getExportData = (columns: string[]) => {
+    const selectedCols = ALL_EXPORT_COLUMNS.filter(c => columns.includes(c.key));
+    return driversToUse.map(d => {
+      const row: Record<string, string> = {};
+      selectedCols.forEach(col => {
+        row[col.label] = col.getValue(d);
+      });
+      return row;
+    });
   };
+
+  const toggleColumn = (key: string) => {
+    setSelectedColumns(prev => 
+      prev.includes(key) 
+        ? prev.filter(k => k !== key)
+        : [...prev, key]
+    );
+  };
+
+  const selectAllColumns = () => setSelectedColumns(DEFAULT_SELECTED_COLUMNS);
+  const deselectAllColumns = () => setSelectedColumns([]);
 
   const generateVCard = (driversSubset: Driver[]): string => {
     const vcards = driversSubset
@@ -90,10 +123,33 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     }
   };
 
-  const handleDownloadCSV = () => {
+  const openColumnSelector = (exportType: 'csv' | 'xlsx' | 'print') => {
+    setPendingExportType(exportType);
+    setShowColumnSelector(true);
+  };
+
+  const executeExport = () => {
+    if (selectedColumns.length === 0) {
+      toast.error('Please select at least one column');
+      return;
+    }
+    
+    if (pendingExportType === 'csv') {
+      performCSVExport();
+    } else if (pendingExportType === 'xlsx') {
+      performXLSXExport();
+    } else if (pendingExportType === 'print') {
+      performPrint();
+    }
+    
+    setShowColumnSelector(false);
+    setPendingExportType(null);
+  };
+
+  const performCSVExport = () => {
     if (driversToUse.length === 0) return;
 
-    const data = getExportData();
+    const data = getExportData(selectedColumns);
     const worksheet = XLSX.utils.json_to_sheet(data);
     const csvContent = XLSX.utils.sheet_to_csv(worksheet);
 
@@ -113,24 +169,15 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     toast.success(`Downloaded ${driversToUse.length} records as CSV`);
   };
 
-  const handleDownloadXLSX = () => {
+  const performXLSXExport = () => {
     if (driversToUse.length === 0) return;
 
-    const data = getExportData();
+    const data = getExportData(selectedColumns);
     const worksheet = XLSX.utils.json_to_sheet(data);
     
-    // Set column widths
-    worksheet['!cols'] = [
-      { wch: 10 },  // Plate
-      { wch: 12 },  // Employee ID
-      { wch: 25 },  // Name
-      { wch: 18 },  // Phone
-      { wch: 18 },  // Telegram Phone
-      { wch: 15 },  // Captain
-      { wch: 12 },  // Schedule
-      { wch: 12 },  // Rest Day
-      { wch: 10 },  // Status
-    ];
+    // Set dynamic column widths based on selected columns
+    const colWidths = selectedColumns.map(() => ({ wch: 15 }));
+    worksheet['!cols'] = colWidths;
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Roster');
@@ -142,7 +189,7 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     toast.success(`Downloaded ${driversToUse.length} records as Excel`);
   };
 
-  const handlePrint = () => {
+  const performPrint = () => {
     if (driversToUse.length === 0) return;
 
     const printWindow = window.open('', '_blank');
@@ -151,7 +198,8 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
       return;
     }
 
-    const data = getExportData();
+    const data = getExportData(selectedColumns);
+    const selectedCols = ALL_EXPORT_COLUMNS.filter(c => selectedColumns.includes(c.key));
     const date = new Date().toLocaleDateString();
 
     const html = `
@@ -226,27 +274,13 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
           <table>
             <thead>
               <tr>
-                <th>Plate</th>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Captain</th>
-                <th>Schedule</th>
-                <th>RD</th>
-                <th>Status</th>
+                ${selectedCols.map(col => `<th>${col.label}</th>`).join('')}
               </tr>
             </thead>
             <tbody>
               ${data.map(row => `
                 <tr>
-                  <td>${row['Plate']}</td>
-                  <td>${row['Employee ID']}</td>
-                  <td>${row['Name']}</td>
-                  <td>${row['Phone']}</td>
-                  <td>${row['Captain']}</td>
-                  <td>${row['Schedule']}</td>
-                  <td>${row['Rest Day']}</td>
-                  <td>${row['Status']}</td>
+                  ${selectedCols.map(col => `<td>${row[col.label] || ''}</td>`).join('')}
                 </tr>
               `).join('')}
             </tbody>
@@ -308,11 +342,11 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-popover">
-            <DropdownMenuItem onClick={handleDownloadXLSX} className="gap-2 cursor-pointer">
+            <DropdownMenuItem onClick={() => openColumnSelector('xlsx')} className="gap-2 cursor-pointer">
               <Table className="h-4 w-4" />
               Excel (.xlsx)
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleDownloadCSV} className="gap-2 cursor-pointer">
+            <DropdownMenuItem onClick={() => openColumnSelector('csv')} className="gap-2 cursor-pointer">
               <FileSpreadsheet className="h-4 w-4" />
               CSV (.csv)
             </DropdownMenuItem>
@@ -324,7 +358,7 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
               <Contact className="h-4 w-4" />
               Contacts (.vcf)
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer">
+            <DropdownMenuItem onClick={() => openColumnSelector('print')} className="gap-2 cursor-pointer">
               <Printer className="h-4 w-4" />
               Print View
             </DropdownMenuItem>
@@ -359,6 +393,52 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
               </Button>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showColumnSelector} onOpenChange={setShowColumnSelector}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5" />
+              Select Columns to Export
+            </DialogTitle>
+            <DialogDescription>
+              Choose which columns to include in your {pendingExportType === 'print' ? 'print view' : `${pendingExportType?.toUpperCase()} export`}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={selectAllColumns}>
+                Select All
+              </Button>
+              <Button variant="outline" size="sm" onClick={deselectAllColumns}>
+                Deselect All
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+              {ALL_EXPORT_COLUMNS.map((col) => (
+                <div key={col.key} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={col.key}
+                    checked={selectedColumns.includes(col.key)}
+                    onCheckedChange={() => toggleColumn(col.key)}
+                  />
+                  <Label htmlFor={col.key} className="text-sm cursor-pointer">
+                    {col.label}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowColumnSelector(false)}>
+              Cancel
+            </Button>
+            <Button onClick={executeExport} disabled={selectedColumns.length === 0}>
+              {pendingExportType === 'print' ? 'Print' : 'Export'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
