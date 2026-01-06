@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
@@ -42,13 +42,34 @@ const ALL_EXPORT_COLUMNS: ExportColumn[] = [
 ];
 
 const DEFAULT_SELECTED_COLUMNS = ALL_EXPORT_COLUMNS.map(c => c.key);
+const STORAGE_KEY = 'roster-export-columns';
+
+const getStoredColumns = (): string[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as string[];
+      // Validate that stored columns still exist
+      const validKeys = ALL_EXPORT_COLUMNS.map(c => c.key as string);
+      return parsed.filter((key) => validKeys.includes(key));
+    }
+  } catch {
+    // Invalid JSON, return default
+  }
+  return DEFAULT_SELECTED_COLUMNS;
+};
 
 export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActionsProps) {
   const { isAdmin } = useAuth();
   const [showVcfBatchModal, setShowVcfBatchModal] = useState(false);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
-  const [selectedColumns, setSelectedColumns] = useState<string[]>(DEFAULT_SELECTED_COLUMNS);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(getStoredColumns);
   const [pendingExportType, setPendingExportType] = useState<'csv' | 'xlsx' | 'print' | null>(null);
+
+  // Persist column selection to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedColumns));
+  }, [selectedColumns]);
 
   const driversToUse = selectedDrivers.length > 0 ? selectedDrivers : drivers;
   const driversWithPhone = driversToUse.filter(d => d.phone);
