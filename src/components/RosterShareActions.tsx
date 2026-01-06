@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Download, FileSpreadsheet, Table, ChevronDown, Contact } from 'lucide-react';
+import { Download, FileSpreadsheet, Table, ChevronDown, Contact, Printer } from 'lucide-react';
 import { Driver } from '@/types/driver';
 import { normalizePhoneToE164, formatPhoneForDisplay } from '@/lib/phone-utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -142,6 +142,129 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
     toast.success(`Downloaded ${driversToUse.length} records as Excel`);
   };
 
+  const handlePrint = () => {
+    if (driversToUse.length === 0) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Unable to open print window. Please allow popups.');
+      return;
+    }
+
+    const data = getExportData();
+    const date = new Date().toLocaleDateString();
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Taxi Driver Roster - ${date}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              padding: 20px;
+              color: #1a1a1a;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 24px;
+              padding-bottom: 16px;
+              border-bottom: 2px solid #e5e5e5;
+            }
+            .header h1 {
+              font-size: 24px;
+              font-weight: 700;
+              margin-bottom: 4px;
+            }
+            .header p {
+              color: #666;
+              font-size: 14px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 11px;
+            }
+            th, td {
+              border: 1px solid #ddd;
+              padding: 8px 6px;
+              text-align: left;
+            }
+            th {
+              background: #f5f5f5;
+              font-weight: 600;
+              text-transform: uppercase;
+              font-size: 10px;
+              letter-spacing: 0.5px;
+            }
+            tr:nth-child(even) {
+              background: #fafafa;
+            }
+            tr:hover {
+              background: #f0f0f0;
+            }
+            .footer {
+              margin-top: 24px;
+              text-align: center;
+              font-size: 11px;
+              color: #888;
+            }
+            @media print {
+              body { padding: 0; }
+              .header { margin-bottom: 16px; }
+              table { font-size: 9px; }
+              th, td { padding: 4px 3px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Taxi Driver Roster</h1>
+            <p>Generated on ${date} • ${data.length} records</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Plate</th>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Captain</th>
+                <th>Schedule</th>
+                <th>RD</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.map(row => `
+                <tr>
+                  <td>${row['Plate']}</td>
+                  <td>${row['Employee ID']}</td>
+                  <td>${row['Name']}</td>
+                  <td>${row['Phone']}</td>
+                  <td>${row['Captain']}</td>
+                  <td>${row['Schedule']}</td>
+                  <td>${row['Rest Day']}</td>
+                  <td>${row['Status']}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="footer">
+            Taxi Driver Roster Management System
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   const getVcfBatches = () => {
     const batches: { start: number; end: number; label: string }[] = [];
     const total = driversWithPhone.length;
@@ -200,6 +323,10 @@ export function RosterShareActions({ drivers, selectedDrivers }: RosterShareActi
             >
               <Contact className="h-4 w-4" />
               Contacts (.vcf)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer">
+              <Printer className="h-4 w-4" />
+              Print View
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
