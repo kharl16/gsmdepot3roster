@@ -120,7 +120,6 @@ const Roster = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <RosterExport drivers={drivers} />
               <ThemeToggle />
               {user ? (
                 <>
